@@ -477,7 +477,9 @@ RECOMP_PATCH void draw_rectangle(Gfx** dl, s16 x0, s16 y0, s16 x1, s16 y1, u8 r,
         gDPFillRectangle((*dl)++, draw_x0, draw_y0, draw_x1, draw_y1);
     }
 
-    gDPSetScissor((*dl)++, G_SC_NON_INTERLACE, 0, 0, screen_w, screen_h);
+    // The original restores the TV-safe frame scissor (8, 8, w - 8, h - 8) here; leaving it at
+    // full screen lets the 3D geometry drawn afterwards spill into the overscan border.
+    set_default_frame_scissor(dl);
     gDPPipeSync((*dl)++);
 
     g_dbg_draw_rectangle_calls++;
@@ -597,11 +599,9 @@ static inline void append_intro_black_border_mask(Gfx** dl) {
 }
 
 RECOMP_PATCH void draw_intro_logo_model(void) {
-    ScissorRect full_rect;
-
-    fill_full_scissor_rect(&full_rect);
-
-    gDPSetScissor(gMainDL++, G_SC_NON_INTERLACE, full_rect.ulx, full_rect.uly, full_rect.lrx, full_rect.lry);
+    // The original clips the logo ship to the TV-safe frame (8, 8, 312, 232); only widescreen
+    // may open it up to the full frame.
+    set_default_frame_scissor(&gMainDL);
     gSPDisplayList(gMainDL++, gOpaqueLit3DRenderSetupDl);
 
     guTranslate(
