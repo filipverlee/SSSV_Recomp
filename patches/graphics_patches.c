@@ -732,6 +732,10 @@ RECOMP_PATCH void render_intro_overlay_frame_63BF88(void) {
     gScreenWidth = target_width;
     gScreenHeight = SSSV_BASE_HEIGHT;
     load_segments(&gMainDL, gDisplayListContext);
+
+    // Title and attract frames are grabbed from RDRAM for the transition into the game.
+    rc_ensure_rt64_extended_enabled(&gMainDL);
+    gEXSetRenderToRAM(gMainDL++, 1);
     clear_depth_buffer(&gMainDL);
     write_main_viewport_expand(gScreenWidth, gScreenHeight);
 
@@ -801,6 +805,11 @@ RECOMP_PATCH void setup_world_perspective_6AB090(DisplayList* arg0) {
     rc_ensure_rt64_extended_enabled(&gMainDL);
     rc_ensure_rt64_extended_enabled(&gLayer0DL);
     rc_ensure_rt64_extended_enabled(&gAuxDL);
+
+    // Writing every rendered frame back to RDRAM costs a GPU readback that scales with the output
+    // resolution (2x: ~25 fps instead of 30 on weaker GPUs). In gameplay the game only reads a frame
+    // back while entering the pause menu, where it copies the previous frame into the menu thumbnail.
+    gEXSetRenderToRAM(gMainDL++, (gInitialisationState != 0) ? 1 : 0);
 
     if (target_width > SSSV_BASE_WIDTH) {
         append_world_depth_clear_failsafe();
