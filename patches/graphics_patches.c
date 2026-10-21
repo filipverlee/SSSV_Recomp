@@ -257,6 +257,35 @@ static inline void patch_world_chunk_clip_ratio_dl(void) {
     }
 }
 
+// The TV screen model (Something Fishy monitors) draws its static as a white quad with prim alpha 0x80
+// and G_AC_DITHER, in 2-cycle mode with G_CC_PASS2 / G_CC_PRIMITIVE. The alpha compare uses the first
+// cycle's alpha, which there is COMBINED: on hardware that still holds the previous pixel's output (~0x80),
+// so about half the pixels pass at random. RT64 starts COMBINED at 0, every pixel fails and the screen
+// stays black. Use PRIMITIVE in the first cycle as well so the dither compares against the prim alpha.
+#define TV_SCREEN_DL_SEGMENT_OFFSET 0x00017AA0u
+#define TV_SCREEN_STATIC_COMBINE_INDEX 27
+
+static inline void patch_tv_screen_static_dl(void) {
+    Gfx* cmd;
+    Gfx original;
+    Gfx fixed;
+
+    if (gSegment1Base == NULL) {
+        return;
+    }
+
+    cmd = &((Gfx*)((u8*)gSegment1Base + TV_SCREEN_DL_SEGMENT_OFFSET))[TV_SCREEN_STATIC_COMBINE_INDEX];
+    gDPSetCombineMode(&original, G_CC_PASS2, G_CC_PRIMITIVE);
+    gDPSetCombineMode(&fixed, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+
+    // Only touch it while segment 1 holds the TV model (the previous command is its dithered render mode).
+    if ((cmd->words.w0 == original.words.w0) && (cmd->words.w1 == original.words.w1) &&
+        ((cmd[-1].words.w0 & 0xFF000000u) == 0xB9000000u) && ((cmd[-1].words.w1 & 0x3u) == 0x3u)) {
+        cmd->words.w0 = fixed.words.w0;
+        cmd->words.w1 = fixed.words.w1;
+    }
+}
+
 static inline void append_sp_set_geometry_mode_cmd(Gfx** dl, u32 mode) {
     (*dl)->words.w0 = 0xB7000000u;
     (*dl)->words.w1 = mode;
@@ -346,6 +375,7 @@ RECOMP_PATCH void load_segments(Gfx **arg0, DisplayList *ddl) {
     if (rc_world_projection_active()) {
         patch_world_chunk_clip_ratio_dl();
     }
+    patch_tv_screen_static_dl();
 
     gSPSegment((*arg0)++, 0, 0);
     gSPSegment((*arg0)++, 1, (const void*)(uintptr_t)osVirtualToPhysical(gSegment1Base));
