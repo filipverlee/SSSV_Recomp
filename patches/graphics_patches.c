@@ -36,6 +36,10 @@ static u32 g_dbg_world_perspective_calls = 0;
 static u32 g_dbg_depth_clear_calls = 0;
 static u32 g_dbg_world_depth_failsafe_calls = 0;
 
+// End of the world state at the start of the translucent object list, so the dome reflection replay
+// (ship_window_patches.c) can run the list without the projection reload.
+Gfx* gXluStateBarrierEnd = NULL;
+
 void setup_intro_perspective_638558(Gfx** dl);
 
 static inline void write_main_viewport_expand(s16 viewport_width, s16 viewport_height) {
@@ -869,6 +873,7 @@ RECOMP_PATCH void setup_world_perspective_6AB090(DisplayList* arg0) {
     gSPMatrix(gXluDL++, &arg0->unk374D0, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gSPPerspNormalize(gXluDL++, gWorldPerspNorm);
 #endif
+    gXluStateBarrierEnd = gXluDL;
 
     g_dbg_world_perspective_calls++;
     if (SHOULD_TRACE_PERIODIC(g_dbg_world_perspective_calls, 6, 240)) {
